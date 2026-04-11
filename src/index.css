@@ -1,0 +1,66 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f6f9;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+input[type=number] {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+  width: 100%;
+  outline: none;
+  transition: border 0.2s;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+input[type=number]:focus {
+  border-color: #378ADD;
+}
+
+button {
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  color: #1a1a1a;
+}
+
+button:hover {
+  background: #f0f0f0;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f4f6f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
