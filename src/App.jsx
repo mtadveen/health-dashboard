@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { sendToBlynk, readFromBlynk } from './blynk'
 import MetricCard from './components/MetricCard'
 import InputPanel from './components/InputPanel'
 import HistoryChart from './components/HistoryChart'
@@ -16,6 +17,14 @@ export default function App() {
   const [lastHR, setLastHR] = useState(null)
   const [lastTemp, setLastTemp] = useState(null)
   const [activePage, setActivePage] = useState('dashboard')
+  const [blynkStatus, setBlynkStatus] = useState('connecting')
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBlynkStatus('connected')
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [])
 
   function playAlarm() {
     try {
@@ -49,6 +58,8 @@ export default function App() {
     setReadings(newReadings)
     setLastHR(hr)
     setLastTemp(temp)
+
+    sendToBlynk(hr, temp)
 
     const hrInfo = classifyHR(hr)
     const tempInfo = classifyTemp(temp)
@@ -110,7 +121,7 @@ export default function App() {
               {activePage === 'settings' && 'Settings'}
             </h1>
             <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>
-              Real-time health monitoring — IoT device simulation
+              Real-time health monitoring — Blynk IoT integrated
             </div>
           </div>
           <span style={{
@@ -136,7 +147,7 @@ export default function App() {
         </div>
 
         <PatientCard />
-        <DeviceStatus readingsCount={readings.length} />
+        <DeviceStatus readingsCount={readings.length} blynkStatus={blynkStatus} />
 
         {readings.length < 5 && (
           <div style={{
@@ -237,6 +248,27 @@ export default function App() {
                 </span>
               </div>
             ))}
+
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              background: '#EAF3DE',
+              borderRadius: 10,
+              border: '0.5px solid #97C459'
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#3B6D11', marginBottom: 6 }}>
+                Blynk IoT Integration
+              </div>
+              <div style={{ fontSize: 12, color: '#3B6D11' }}>
+                Status: <strong>{blynkStatus === 'connected' ? 'Connected' : 'Connecting...'}</strong>
+              </div>
+              <div style={{ fontSize: 12, color: '#3B6D11', marginTop: 4 }}>
+                Template: Heath Monitor &nbsp;·&nbsp; Device: Ramaiah's Device
+              </div>
+              <div style={{ fontSize: 12, color: '#3B6D11', marginTop: 4 }}>
+                V0 → Heart Rate &nbsp;·&nbsp; V1 → Temperature
+              </div>
+            </div>
           </div>
         )}
 

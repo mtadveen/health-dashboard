@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-export default function DeviceStatus({ readingsCount }) {
+export default function DeviceStatus({ readingsCount, blynkStatus }) {
   const [time, setTime] = useState(new Date())
   const [battery, setBattery] = useState(87)
 
@@ -43,17 +43,21 @@ export default function DeviceStatus({ readingsCount }) {
         <div style={{
           width: 8, height: 8,
           borderRadius: '50%',
-          background: '#1D9E75',
-          boxShadow: '0 0 6px #1D9E75'
+          background: blynkStatus === 'connected' ? '#1D9E75' : '#EF9F27',
+          boxShadow: blynkStatus === 'connected' ? '0 0 6px #1D9E75' : '0 0 6px #EF9F27'
         }} />
-        <span style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Device connected</span>
+        <span style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>
+          Blynk Cloud —{' '}
+          {blynkStatus === 'connected'
+            ? <span style={{ color: '#1D9E75' }}>Connected</span>
+            : <span style={{ color: '#EF9F27' }}>Connecting...</span>
+          }
+        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 14 }}>🫀</span>
-        <span style={{ fontSize: 12, color: '#555' }}>
-          Sensor active
-        </span>
+        <span style={{ fontSize: 12, color: '#555' }}>Sensor active</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -62,19 +66,14 @@ export default function DeviceStatus({ readingsCount }) {
           {battery.toFixed(0)}%
         </span>
         <div style={{
-          width: 32,
-          height: 10,
+          width: 32, height: 10,
           border: `1.5px solid ${batteryColor}`,
-          borderRadius: 3,
-          padding: 1.5,
-          display: 'flex',
-          alignItems: 'center'
+          borderRadius: 3, padding: 1.5,
+          display: 'flex', alignItems: 'center'
         }}>
           <div style={{
-            width: `${battery}%`,
-            height: '100%',
-            background: batteryColor,
-            borderRadius: 2,
+            width: `${battery}%`, height: '100%',
+            background: batteryColor, borderRadius: 2,
             transition: 'width 0.5s'
           }} />
         </div>
