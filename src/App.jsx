@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { sendToBlynk, readFromBlynk } from './blynk'
 import MetricCard from './components/MetricCard'
 import InputPanel from './components/InputPanel'
@@ -18,6 +18,18 @@ export default function App() {
   const [lastTemp, setLastTemp] = useState(null)
   const [activePage, setActivePage] = useState('dashboard')
   const [blynkStatus, setBlynkStatus] = useState('connecting')
+  const [autoSimulate, setAutoSimulate] = useState(false)
+  const [simulateEmergency, setSimulateEmergency] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const readingsRef = useRef([])
+  const logsRef = useRef([])
+  const simulateEmergencyRef = useRef(false)
+  const totalCountRef = useRef(0)
+
+  useEffect(() => {
+    simulateEmergencyRef.current = simulateEmergency
+  }, [simulateEmergency])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -25,6 +37,70 @@ export default function App() {
     }, 3000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (!autoSimulate) return
+
+    const interval = setInterval(() => {
+      let hr, temp
+
+      if (simulateEmergencyRef.current) {
+        hr = Math.floor(Math.random() * 40) + 110
+        temp = parseFloat((Math.random() * 2 + 38.5).toFixed(1))
+      } else {
+        hr = Math.floor(Math.random() * 20) + 68
+        temp = parseFloat((Math.random() * 1.5 + 36.2).toFixed(1))
+      }
+
+      const now = new Date()
+      const time = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+
+      const newReadings = [...readingsRef.current, { hr, temp, time }].slice(-15)
+      readingsRef.current = newReadings
+      setReadings([...newReadings])
+      setLastHR(hr)
+      setLastTemp(temp)
+      sendToBlynk(hr, temp)
+
+      totalCountRef.current = totalCountRef.current + 1
+      setTotalCount(totalCountRef.current)
+
+      if (totalCountRef.current % 5 === 0) {
+        const last5 = newReadings.slice(-5)
+        const avgHR = last5.reduce((s, r) => s + r.hr, 0) / 5
+        const avgTemp = last5.reduce((s, r) => s + r.temp, 0) / 5
+
+        const hrInfo = classifyHR(avgHR)
+        const tempInfo = classifyTemp(avgTemp)
+        const overall = getOverallLevel(hrInfo.level, tempInfo.level)
+
+        const msgs = []
+        if (overall === 'normal') {
+          msgs.push(`All vitals normal — Avg HR: ${avgHR.toFixed(1)} BPM, Avg Temp: ${avgTemp.toFixed(1)}°C`)
+        } else {
+          if (hrInfo.level !== 'normal') msgs.push(`Heart rate: ${avgHR.toFixed(1)} BPM — ${hrInfo.label}`)
+          if (tempInfo.level !== 'normal') msgs.push(`Temperature: ${avgTemp.toFixed(1)}°C — ${tempInfo.label}`)
+        }
+
+        const logEntry = { level: overall, msg: msgs.join(' · '), time }
+        const newLogs = [logEntry, ...logsRef.current]
+        logsRef.current = newLogs
+        setLogs([...newLogs])
+
+        if (overall !== 'normal') {
+          setPopup({ level: overall, msgs })
+          playAlarm()
+        }
+      }
+
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [autoSimulate])
 
   function playAlarm() {
     try {
@@ -55,30 +131,39 @@ export default function App() {
     })
 
     const newReadings = [...readings, { hr, temp, time }].slice(-15)
+    readingsRef.current = newReadings
     setReadings(newReadings)
     setLastHR(hr)
     setLastTemp(temp)
-
     sendToBlynk(hr, temp)
 
-    const hrInfo = classifyHR(hr)
-    const tempInfo = classifyTemp(temp)
-    const overall = getOverallLevel(hrInfo.level, tempInfo.level)
+    totalCountRef.current = totalCountRef.current + 1
+    setTotalCount(totalCountRef.current)
 
-    if (newReadings.length < 5) return
+    if (totalCountRef.current % 5 === 0) {
+      const last5 = newReadings.slice(-5)
+      const avgHR = last5.reduce((s, r) => s + r.hr, 0) / 5
+      const avgTemp = last5.reduce((s, r) => s + r.temp, 0) / 5
 
-    if (overall !== 'normal') {
+      const hrInfo = classifyHR(avgHR)
+      const tempInfo = classifyTemp(avgTemp)
+      const overall = getOverallLevel(hrInfo.level, tempInfo.level)
+
       const msgs = []
-      if (hrInfo.level !== 'normal') {
-        msgs.push(`Heart rate: ${Math.round(hr)} BPM — ${hrInfo.label}`)
+      if (overall === 'normal') {
+        msgs.push(`All vitals normal — Avg HR: ${avgHR.toFixed(1)} BPM, Avg Temp: ${avgTemp.toFixed(1)}°C`)
+      } else {
+        if (hrInfo.level !== 'normal') msgs.push(`Heart rate: ${avgHR.toFixed(1)} BPM — ${hrInfo.label}`)
+        if (tempInfo.level !== 'normal') msgs.push(`Temperature: ${avgTemp.toFixed(1)}°C — ${tempInfo.label}`)
       }
-      if (tempInfo.level !== 'normal') {
-        msgs.push(`Temperature: ${temp.toFixed(1)}°C — ${tempInfo.label}`)
-      }
+
       const logEntry = { level: overall, msg: msgs.join(' · '), time }
       setLogs(prev => [logEntry, ...prev])
-      setPopup({ level: overall, msgs })
-      playAlarm()
+
+      if (overall !== 'normal') {
+        setPopup({ level: overall, msgs })
+        playAlarm()
+      }
     }
   }
 
@@ -146,25 +231,80 @@ export default function App() {
           </span>
         </div>
 
+        <div style={{
+          background: '#fff',
+          borderRadius: 14,
+          border: '0.5px solid #e8e8e8',
+          padding: '1rem 1.5rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#333', marginRight: 8 }}>
+            Auto Simulation
+          </div>
+
+          <button
+            onClick={() => {
+              setAutoSimulate(!autoSimulate)
+              if (autoSimulate) setSimulateEmergency(false)
+            }}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 8,
+              border: 'none',
+              background: autoSimulate ? '#E24B4A' : '#1D9E75',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            {autoSimulate ? '⏹ Stop Simulation' : '▶ Start Simulation'}
+          </button>
+
+          {autoSimulate && (
+            <button
+              onClick={() => setSimulateEmergency(!simulateEmergency)}
+              style={{
+                padding: '8px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: simulateEmergency ? '#1D9E75' : '#E24B4A',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              {simulateEmergency ? '✅ Switch to Normal' : '🚨 Simulate Emergency'}
+            </button>
+          )}
+
+          {autoSimulate && (
+            <div style={{
+              fontSize: 12,
+              color: simulateEmergency ? '#E24B4A' : '#1D9E75',
+              fontWeight: 500
+            }}>
+              {simulateEmergency
+                ? '🚨 Sending dangerous vitals — alert fires every 5 readings'
+                : '✅ Sending normal vitals — status check every 5 readings'}
+            </div>
+          )}
+
+          {autoSimulate && (
+            <div style={{ fontSize: 12, color: '#aaa', marginLeft: 'auto' }}>
+              Reading #{totalCount} · Next check in {5 - (totalCount % 5 === 0 ? 5 : totalCount % 5)} readings
+            </div>
+          )}
+        </div>
+
         <PatientCard />
         <DeviceStatus readingsCount={readings.length} blynkStatus={blynkStatus} />
-
-        {readings.length < 5 && (
-          <div style={{
-            background: '#FFF8E1',
-            border: '1px solid #EF9F27',
-            borderRadius: 10,
-            padding: '10px 16px',
-            marginBottom: '1.5rem',
-            fontSize: 13,
-            color: '#854F0B',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            ⏳ Collecting readings — {readings.length}/5 done. Alerts activate after 5 readings.
-          </div>
-        )}
 
         {(activePage === 'dashboard' || activePage === 'history') && (
           <>
@@ -187,11 +327,11 @@ export default function App() {
                 label="Moving average"
                 value={avgHR !== null ? avgHR.toFixed(1) : null}
                 unit="BPM"
-                sublabel={`${Math.min(readings.length, 5)}/5 readings`}
+                sublabel={`${Math.min(totalCount, 5)}/5 readings`}
               />
               <MetricCard
                 label="Total readings"
-                value={readings.length}
+                value={totalCount || readings.length}
                 sublabel="This session"
               />
             </div>
@@ -263,10 +403,10 @@ export default function App() {
                 Status: <strong>{blynkStatus === 'connected' ? 'Connected' : 'Connecting...'}</strong>
               </div>
               <div style={{ fontSize: 12, color: '#3B6D11', marginTop: 4 }}>
-                Template: Heath Monitor &nbsp;·&nbsp; Device: Ramaiah's Device
+                Template: Heath Monitor · Device: Heath Monitor
               </div>
               <div style={{ fontSize: 12, color: '#3B6D11', marginTop: 4 }}>
-                V0 → Heart Rate &nbsp;·&nbsp; V1 → Temperature
+                V0 → Heart Rate · V1 → Temperature
               </div>
             </div>
           </div>
